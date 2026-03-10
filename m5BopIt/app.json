@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+      "NSBluetoothAlwaysUsageDescription": "This app connects to the M5 BopIt device",
+      "NSBluetoothPeripheralUsageDescription": "Bluetooth is used for the game"
+  }
     },
     "android": {
       "adaptiveIcon": {
