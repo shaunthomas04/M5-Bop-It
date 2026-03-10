@@ -11,9 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-      "NSBluetoothAlwaysUsageDescription": "This app connects to the M5 BopIt device",
-      "NSBluetoothPeripheralUsageDescription": "Bluetooth is used for the game"
-  }
+        "NSBluetoothAlwaysUsageDescription": "This app connects to the M5 BopIt device",
+        "NSBluetoothPeripheralUsageDescription": "Bluetooth is used for the game"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.m5BopIt"
     },
     "web": {
       "output": "static",
