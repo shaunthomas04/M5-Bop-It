@@ -26,7 +26,7 @@ bool previouslyConnected = false;
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 // Name shown when scanning for BLE devices
-static String BLE_BROADCAST_NAME = "Grissoms M5Core2024";
+static String BLE_BROADCAST_NAME = "ShaunM5";
 
 ///////////////////////////////////////////////////////////////
 // BLE connection callbacks
