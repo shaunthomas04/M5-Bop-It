@@ -1,7 +1,7 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
-#include <M5Core2.h>
+#include <M5Unified.h>
 
 ///////////////////////////////////////////////////////////////
 // Function Prototypes
@@ -45,16 +45,43 @@ static String BLE_BROADCAST_NAME = "ShaunM5";
 #define SLIDE_Y         160
 #define SLIDE_TRACK_H   40
 #define SLIDER_W        60
-#define SLIDE_THRESHOLD 240   // x position that counts as "slid"
+#define SLIDE_THRESHOLD 240
 
-int  sliderX        = SLIDE_START_X;
-bool sliderGrabbed  = false;
+int  sliderX       = SLIDE_START_X;
+bool sliderGrabbed = false;
 
 ///////////////////////////////////////////////////////////////
 // IMU thresholds
 ///////////////////////////////////////////////////////////////
-#define TWIST_THRESHOLD  0.7   // abs(accY) when held horizontally
-#define SHAKE_THRESHOLD  2.0   // spike in accX or accZ
+#define TWIST_THRESHOLD  0.7f
+#define SHAKE_THRESHOLD  2.0f
+
+float prevAccX = 0, prevAccY = 0, prevAccZ = 0;
+
+///////////////////////////////////////////////////////////////
+// M5Unified IMU helper — reads accel into floats
+///////////////////////////////////////////////////////////////
+void readAccel(float &ax, float &ay, float &az) {
+    M5.Imu.update();  // explicitly pull fresh data
+    auto data = M5.Imu.getImuData();
+    ax = data.accel.x;
+    ay = data.accel.y;
+    az = data.accel.z;
+    Serial.printf("readAccel raw: %.2f %.2f %.2f\n", ax, ay, az);
+}
+
+///////////////////////////////////////////////////////////////
+// M5Unified touch helper
+// Returns true if screen is touched, sets tx/ty to position
+///////////////////////////////////////////////////////////////
+bool getTouchPoint(int &tx, int &ty) {
+    auto count = M5.Touch.getCount();
+    if (count == 0) return false;
+    auto detail = M5.Touch.getDetail(0);
+    tx = detail.x;
+    ty = detail.y;
+    return true;
+}
 
 ///////////////////////////////////////////////////////////////
 // Server callbacks
@@ -70,7 +97,7 @@ class MyServerCallbacks : public BLEServerCallbacks {
     void onDisconnect(BLEServer *pServer) {
         deviceConnected = false;
         waitingForInput  = false;
-        Serial.println("Disconnected — restarting advertising");
+        Serial.println("Disconnected - restarting advertising");
         BLEDevice::startAdvertising();
         drawScreenTextWithBackground("Disconnected.\nWaiting...", TFT_ORANGE);
     }
@@ -95,11 +122,13 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
             currentCommand    = payload.substring(colonIdx + 1);
             currentCommand.trim();
 
-            // Reset slider position for each new round
             sliderX       = SLIDE_START_X;
             sliderGrabbed = false;
-            waitingForInput = true;
 
+            // Seed previous accel so shake doesn't fire immediately
+            readAccel(prevAccX, prevAccY, prevAccZ);
+
+            waitingForInput = true;
             drawPlayerPrompt(currentPlayerName, currentCommand);
 
         } else if (msg == "TIMES_UP") {
@@ -153,7 +182,6 @@ void drawBopScreen(String playerName) {
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.println(playerName);
 
-    // Big red button
     M5.Lcd.fillRoundRect(40, 70, 240, 120, 20, TFT_RED);
     M5.Lcd.setTextSize(4);
     M5.Lcd.setTextColor(TFT_WHITE);
@@ -162,12 +190,10 @@ void drawBopScreen(String playerName) {
 }
 
 void handleBopInteraction() {
-    TouchPoint_t pos = M5.Touch.getPressPoint();
-    if (pos.x == -1) return;
+    int tx, ty;
+    if (!getTouchPoint(tx, ty)) return;
 
-    // Check if tap is inside the red button area
-    if (pos.x >= 40 && pos.x <= 280 && pos.y >= 70 && pos.y <= 190) {
-        // Flash white to give feedback
+    if (tx >= 40 && tx <= 280 && ty >= 70 && ty <= 190) {
         M5.Lcd.fillRoundRect(40, 70, 240, 120, 20, TFT_WHITE);
         delay(80);
         sendSuccess();
@@ -186,7 +212,6 @@ void drawSlideScreen(String playerName) {
     M5.Lcd.setCursor(10, 40);
     M5.Lcd.println("SLIDE IT!  >>>");
 
-    // Track
     M5.Lcd.fillRoundRect(
         SLIDE_START_X,
         SLIDE_Y - SLIDE_TRACK_H / 2,
@@ -196,39 +221,38 @@ void drawSlideScreen(String playerName) {
         TFT_DARKGREY
     );
 
-    // Slider thumb
     M5.Lcd.fillRoundRect(sliderX, SLIDE_Y - SLIDE_TRACK_H / 2, SLIDER_W, SLIDE_TRACK_H, 10, TFT_YELLOW);
 }
 
 void handleSlideInteraction() {
-    TouchPoint_t pos = M5.Touch.getPressPoint();
+    int tx, ty;
+    bool touched = getTouchPoint(tx, ty);
 
-    if (pos.x == -1) {
+    if (!touched) {
         sliderGrabbed = false;
         return;
     }
 
-    // Grab slider if touching it
-    bool touchingSlider = (pos.x >= sliderX && pos.x <= sliderX + SLIDER_W &&
-                           pos.y >= SLIDE_Y - SLIDE_TRACK_H / 2 &&
-                           pos.y <= SLIDE_Y + SLIDE_TRACK_H / 2);
+    bool touchingSlider = (tx >= sliderX && tx <= sliderX + SLIDER_W &&
+                           ty >= SLIDE_Y - SLIDE_TRACK_H / 2 &&
+                           ty <= SLIDE_Y + SLIDE_TRACK_H / 2);
 
     if (touchingSlider || sliderGrabbed) {
         sliderGrabbed = true;
 
-        // Clamp slider position to track bounds
-        int newX = pos.x - SLIDER_W / 2;
+        int newX = tx - SLIDER_W / 2;
         newX     = max(newX, SLIDE_START_X);
         newX     = min(newX, SLIDE_END_X);
 
         if (newX != sliderX) {
             sliderX = newX;
 
-            // Redraw track and thumb
-            M5.Lcd.fillRect(SLIDE_START_X, SLIDE_Y - SLIDE_TRACK_H / 2 - 2,
-                            SLIDE_END_X - SLIDE_START_X + SLIDER_W + 2,
-                            SLIDE_TRACK_H + 4, TFT_BLACK);
-
+            M5.Lcd.fillRect(
+                SLIDE_START_X, SLIDE_Y - SLIDE_TRACK_H / 2 - 2,
+                SLIDE_END_X - SLIDE_START_X + SLIDER_W + 2,
+                SLIDE_TRACK_H + 4,
+                TFT_BLACK
+            );
             M5.Lcd.fillRoundRect(
                 SLIDE_START_X,
                 SLIDE_Y - SLIDE_TRACK_H / 2,
@@ -237,11 +261,9 @@ void handleSlideInteraction() {
                 10,
                 TFT_DARKGREY
             );
-
             M5.Lcd.fillRoundRect(sliderX, SLIDE_Y - SLIDE_TRACK_H / 2, SLIDER_W, SLIDE_TRACK_H, 10, TFT_YELLOW);
         }
 
-        // Check if slid far enough
         if (sliderX >= SLIDE_THRESHOLD) {
             M5.Lcd.fillRoundRect(sliderX, SLIDE_Y - SLIDE_TRACK_H / 2, SLIDER_W, SLIDE_TRACK_H, 10, TFT_WHITE);
             delay(80);
@@ -251,9 +273,10 @@ void handleSlideInteraction() {
 }
 
 ///////////////////////////////////////////////////////////////
-// TWIST — tilt M5 to landscape (rotate 90°)
-// When held normally: accY ≈ 0, accZ ≈ -1
-// When rotated 90° sideways: abs(accY) approaches 1.0
+// TWIST — rotate M5 sideways
+// At rest:           accX≈0, accY≈0, accZ≈-1
+// Rotated 90° right: accX≈0, accY≈1, accZ≈0
+// Rotated 90° left:  accX≈0, accY≈-1, accZ≈0
 ///////////////////////////////////////////////////////////////
 void drawTwistScreen(String playerName) {
     M5.Lcd.fillScreen(TFT_BLACK);
@@ -268,7 +291,6 @@ void drawTwistScreen(String playerName) {
     M5.Lcd.println("Rotate the M5");
     M5.Lcd.println("sideways!");
 
-    // Draw a rotation arrow hint
     M5.Lcd.drawRoundRect(60, 160, 200, 60, 10, TFT_CYAN);
     M5.Lcd.setTextSize(3);
     M5.Lcd.setTextColor(TFT_CYAN);
@@ -278,18 +300,17 @@ void drawTwistScreen(String playerName) {
 
 void handleTwistInteraction() {
     float accX, accY, accZ;
-    M5.IMU.getAccelData(&accX, &accY, &accZ);
+    readAccel(accX, accY, accZ);
 
-    Serial.printf("IMU accX=%.2f accY=%.2f accZ=%.2f\n", accX, accY, accZ);
+    Serial.printf("TWIST accX=%.2f accY=%.2f accZ=%.2f\n", accX, accY, accZ);
 
-    // When rotated horizontally, accY swings away from 0
     if (abs(accY) >= TWIST_THRESHOLD) {
         sendSuccess();
     }
 }
 
 ///////////////////////////////////////////////////////////////
-// SHAKE — detect sudden acceleration spike
+// SHAKE — detect sudden acceleration delta between frames
 ///////////////////////////////////////////////////////////////
 void drawShakeScreen(String playerName) {
     M5.Lcd.fillScreen(TFT_BLACK);
@@ -305,7 +326,6 @@ void drawShakeScreen(String playerName) {
     M5.Lcd.println("as hard as");
     M5.Lcd.println("you can!");
 
-    // Draw shake hint
     M5.Lcd.setTextSize(4);
     M5.Lcd.setTextColor(TFT_GREEN);
     M5.Lcd.setCursor(50, 180);
@@ -314,14 +334,19 @@ void drawShakeScreen(String playerName) {
 
 void handleShakeInteraction() {
     float accX, accY, accZ;
-    M5.IMU.getAccelData(&accX, &accY, &accZ);
+    readAccel(accX, accY, accZ);
 
-    Serial.printf("IMU accX=%.2f accY=%.2f accZ=%.2f\n", accX, accY, accZ);
+    float dX = abs(accX - prevAccX);
+    float dY = abs(accY - prevAccY);
+    float dZ = abs(accZ - prevAccZ);
 
-    // Detect a spike above threshold in any axis
-    if (abs(accX) >= SHAKE_THRESHOLD ||
-        abs(accY) >= SHAKE_THRESHOLD ||
-        abs(accZ) >= SHAKE_THRESHOLD) {
+    Serial.printf("SHAKE dX=%.2f dY=%.2f dZ=%.2f\n", dX, dY, dZ);
+
+    prevAccX = accX;
+    prevAccY = accY;
+    prevAccZ = accZ;
+
+    if (dX >= SHAKE_THRESHOLD || dY >= SHAKE_THRESHOLD || dZ >= SHAKE_THRESHOLD) {
         sendSuccess();
     }
 }
@@ -330,12 +355,31 @@ void handleShakeInteraction() {
 // Setup
 ///////////////////////////////////////////////////////////////
 void setup() {
-    M5.begin();
-    M5.IMU.Init();
-    M5.Lcd.setTextSize(3);
+    // Start serial first for debugging
     Serial.begin(115200);
+    delay(500);
 
+    // Configure M5
+    auto cfg = M5.config();
+    cfg.external_imu = true;   // helps detection on some boards
+    M5.begin(cfg);
+
+    // Screen setup
+    M5.Lcd.setTextSize(3);
+
+    // Initialize IMU
+    if (!M5.Imu.begin()) {
+        Serial.println("IMU initialization failed!");
+    } else {
+        Serial.println("IMU initialized.");
+    }
+
+    int imuType = M5.Imu.getType();
+    Serial.printf("IMU type detected: %d\n", imuType);
+
+    // BLE setup
     BLEDevice::init(BLE_BROADCAST_NAME.c_str());
+
     drawScreenTextWithBackground("Initializing...", TFT_CYAN);
 
     broadcastBleServer();
@@ -345,7 +389,6 @@ void setup() {
         TFT_BLUE
     );
 }
-
 ///////////////////////////////////////////////////////////////
 // Loop
 ///////////////////////////////////////////////////////////////
