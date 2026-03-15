@@ -94,7 +94,7 @@ void loop()
         // Advertising but no phone connected yet
         drawScreenTextWithBackground(
             "Waiting for phone\nto connect via BLE...",
-            TFT_ORANGE
+            TFT_PURPLE
         );
     }
     else if (!deviceConnected && previouslyConnected) {
