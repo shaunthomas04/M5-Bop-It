@@ -6,7 +6,7 @@ import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 const COMMANDS = [
   { icon: 'touch-app',       label: 'Bop It!',   color: '#FF4D6D' },
   { icon: 'screen-rotation', label: 'Twist It!', color: '#4CC9F0' },
-  { icon: 'open-with',       label: 'Pull It!',  color: '#FFBE0B' },
+  { icon: 'swap-horiz',       label: 'Slide It!',  color: '#FFBE0B' },
   { icon: 'vibration',       label: 'Shake It!', color: '#06D6A0' },
 ];
 

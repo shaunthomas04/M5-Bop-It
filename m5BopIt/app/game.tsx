@@ -32,7 +32,7 @@ interface GameState {
 }
 
 interface BopCommand {
-  key: 'BOP' | 'TWIST' | 'PULL' | 'SHAKE';
+  key: 'BOP' | 'TWIST' | 'SLIDE' | 'SHAKE';
   label: string;
   icon: string;
   color: string;
@@ -43,7 +43,7 @@ interface BopCommand {
 const BOP_COMMANDS: BopCommand[] = [
   { key: 'BOP',   label: 'Bop It!',   icon: 'touch-app',       color: '#FF4D6D' },
   { key: 'TWIST', label: 'Twist It!', icon: 'screen-rotation', color: '#4CC9F0' },
-  { key: 'PULL',  label: 'Pull It!',  icon: 'open-with',       color: '#FFBE0B' },
+  { key: 'SLIDE', label: 'Slide It!', icon: 'swap-horiz',      color: '#FFBE0B' },
   { key: 'SHAKE', label: 'Shake It!', icon: 'vibration',       color: '#06D6A0' },
 ];
 
