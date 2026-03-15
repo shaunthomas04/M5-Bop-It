@@ -171,7 +171,7 @@ export default function GameScreen() {
   const issueCommand = (cmd: BopCommand) => {
     if (phase !== 'idle') return
     // Send "BOP_IT:PlayerName" so M5 knows who to display
-    BLEManager.sendMessage(`BOP_IT:${players[currentIdx].name}`)
+    BLEManager.sendMessage(`BOP_IT:${players[currentIdx].name}:${cmd.key}`)
     setActiveCommand(cmd)
     setTimeLeft(roundTime)
     setPhase('countdown')

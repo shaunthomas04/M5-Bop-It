@@ -5,7 +5,7 @@
 
 void broadcastBleServer();
 void drawScreenTextWithBackground(String text, int backgroundColor);
-void drawPlayerPrompt(String playerName);
+void drawPlayerPrompt(String playerName, String command);
 
 BLEServer         *bleServer;
 BLEService        *bleService;
@@ -45,11 +45,8 @@ class MyServerCallbacks : public BLEServerCallbacks {
 };
 
 ///////////////////////////////////////////////////////////////
-// Characteristic write callback — phone → M5
-// Expected messages:
-//   "BOP_IT:PlayerName"  → show player name, wait for tap
-//   "TIMES_UP"           → player was too slow
-//   "SAFE"               → player tapped in time (confirmed)
+// Characteristic write callback
+// Message format: "BOP_IT:PlayerName:COMMAND"
 ///////////////////////////////////////////////////////////////
 class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
@@ -60,9 +57,14 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
         Serial.printf("Received: %s\n", msg.c_str());
 
         if (msg.startsWith("BOP_IT:")) {
-            currentPlayerName = msg.substring(7); // everything after "BOP_IT:"
-            waitingForTap     = true;
-            drawPlayerPrompt(currentPlayerName);
+            // Parse "BOP_IT:PlayerName:COMMAND"
+            String payload       = msg.substring(7);         // "PlayerName:COMMAND"
+            int    colonIdx      = payload.indexOf(':');
+            currentPlayerName    = payload.substring(0, colonIdx);  // "PlayerName"
+            String command       = payload.substring(colonIdx + 1); // "BOP", "TWIST" etc.
+
+            waitingForTap = true;
+            drawPlayerPrompt(currentPlayerName, command);
 
         } else if (msg == "TIMES_UP") {
             waitingForTap = false;
@@ -86,16 +88,28 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
 };
 
 ///////////////////////////////////////////////////////////////
-// Draw the tap prompt for the current player
+// Draw the tap prompt with player name + command
 ///////////////////////////////////////////////////////////////
-void drawPlayerPrompt(String playerName) {
-    M5.Lcd.fillScreen(TFT_ORANGE);
-    M5.Lcd.setCursor(0, 20);
+void drawPlayerPrompt(String playerName, String command) {
+    // Map command key to display label
+    String label = "BOP IT!";
+    int    color = TFT_ORANGE;
+
+    if      (command == "BOP")   { label = "BOP IT!";   color = TFT_RED;    }
+    else if (command == "TWIST") { label = "TWIST IT!"; color = TFT_CYAN;   }
+    else if (command == "PULL")  { label = "PULL IT!";  color = TFT_YELLOW; }
+    else if (command == "SHAKE") { label = "SHAKE IT!"; color = TFT_GREEN;  }
+
+    M5.Lcd.fillScreen(color);
+    M5.Lcd.setCursor(0, 10);
     M5.Lcd.setTextSize(3);
     M5.Lcd.println(playerName + ":");
     M5.Lcd.println("");
     M5.Lcd.setTextSize(4);
-    M5.Lcd.println("TAP TO\nBOP IT!");
+    M5.Lcd.println(label);
+    M5.Lcd.println("");
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.println("TAP THE SCREEN!");
 }
 
 ///////////////////////////////////////////////////////////////
