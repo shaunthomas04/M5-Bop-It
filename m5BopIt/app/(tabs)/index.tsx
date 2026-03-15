@@ -30,7 +30,7 @@ export default function GameSetupScreen() {
   const [timeLimit, setTimeLimit] = useState(3);
 
   // BLE
-  const [m5Name, setM5Name]                   = useState('Grissoms M5Core2024');
+  const [m5Name, setM5Name]                   = useState('');
   const [bleStatus, setBleStatus]             = useState<BleStatus>('idle');
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
 
@@ -356,7 +356,7 @@ export default function GameSetupScreen() {
                 style={styles.textInput}
                 value={m5Name}
                 onChangeText={setM5Name}
-                placeholder="Device name (e.g. Grissoms M5Core2024)"
+                placeholder="Device name"
                 placeholderTextColor="rgba(255,255,255,0.2)"
                 selectionColor="#4CC9F0"
                 editable={bleStatus !== 'connected'}

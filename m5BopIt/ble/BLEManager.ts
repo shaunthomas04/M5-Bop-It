@@ -38,7 +38,7 @@ class BLEManager {
       if (!device) return
 
       if (device.name === deviceName) {
-        console.log("Found device:", device.name)
+        console.log("Found device:", device.name, "|", device.localName)
         this.manager.stopDeviceScan()
         this.device = device
         onFound(device)
