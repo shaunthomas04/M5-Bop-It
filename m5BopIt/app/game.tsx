@@ -1,3 +1,4 @@
+import BLEManager from '@/ble/BLEManager';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,38 +36,16 @@ interface BopCommand {
   label: string;
   icon: string;
   color: string;
-  blePayload: string;
 }
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 const BOP_COMMANDS: BopCommand[] = [
-  { key: 'BOP',   label: 'Bop It!',   icon: 'touch-app',       color: '#FF4D6D', blePayload: 'CMD:BOP'   },
-  { key: 'TWIST', label: 'Twist It!', icon: 'screen-rotation', color: '#4CC9F0', blePayload: 'CMD:TWIST' },
-  { key: 'PULL',  label: 'Pull It!',  icon: 'open-with',       color: '#FFBE0B', blePayload: 'CMD:PULL'  },
-  { key: 'SHAKE', label: 'Shake It!', icon: 'vibration',       color: '#06D6A0', blePayload: 'CMD:SHAKE' },
+  { key: 'BOP',   label: 'Bop It!',   icon: 'touch-app',       color: '#FF4D6D' },
+  { key: 'TWIST', label: 'Twist It!', icon: 'screen-rotation', color: '#4CC9F0' },
+  { key: 'PULL',  label: 'Pull It!',  icon: 'open-with',       color: '#FFBE0B' },
+  { key: 'SHAKE', label: 'Shake It!', icon: 'vibration',       color: '#06D6A0' },
 ];
-
-// ─── BLE Integration ──────────────────────────────────────────────────────────
-//
-//  TX:  bleSendCommand() fires when a command is issued.
-//       Replace the console.log with your BLEManager.write() call.
-//
-//  RX:  The M5 should send back "RESULT:SUCCESS" when the player succeeds.
-//       In your BLEManager notification handler call: onBleSuccess()
-//       Example:
-//         BLEManager.onNotification((msg) => {
-//           if (msg === 'RESULT:SUCCESS') onBleSuccess();
-//         });
-
-const bleSendCommand = (payload: string) => {
-  console.log('[BLE TX]', payload);
-  // TODO: BLEManager.write(serviceUuid, characteristicUuid, payload)
-};
-
-// Exposed so your BLEManager handler can call it
-let _bleSuccessCb: (() => void) | null = null;
-export const onBleSuccess = () => _bleSuccessCb?.();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -88,11 +67,10 @@ export default function GameScreen() {
         players: [
           { name: 'Alex',   color: '#FF4D6D', isOut: false },
           { name: 'Jordan', color: '#4CC9F0', isOut: false },
-          { name: 'Sam',    color: '#FFBE0B', isOut: false },
         ],
-        gameMode: 'Taskmaster',
+        gameMode: 'Random',
         currentPlayerIndex: 0,
-        roundTimeLimit: 5,
+        roundTimeLimit: 3,
       };
 
   const [players, setPlayers]       = useState<Player[]>(parsed.players);
@@ -100,14 +78,19 @@ export default function GameScreen() {
   const [gameMode]                  = useState<GameMode>(parsed.gameMode);
   const [roundTime]                 = useState(parsed.roundTimeLimit);
 
-  // 'idle'       → waiting for taskmaster input (or auto in Random)
-  // 'countdown'  → command sent, timer running, assuming fail
-  // 'eliminated' → timer expired, showing elimination briefly
   const [phase, setPhase]                 = useState<'idle' | 'countdown' | 'eliminated'>('idle');
   const [activeCommand, setActiveCommand] = useState<BopCommand | null>(null);
   const [timeLeft, setTimeLeft]           = useState(roundTime);
 
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref copy of phase so BLE callback always sees latest value without re-subscribing
+  const phaseRef         = useRef(phase);
+  const playersRef       = useRef(players);
+  const currentIdxRef    = useRef(currentIdx);
+
+  useEffect(() => { phaseRef.current = phase; },      [phase]);
+  useEffect(() => { playersRef.current = players; },  [players]);
+  useEffect(() => { currentIdxRef.current = currentIdx; }, [currentIdx]);
 
   // Animations
   const fadeIn      = useRef(new Animated.Value(0)).current;
@@ -120,103 +103,110 @@ export default function GameScreen() {
   const activePlayers = players.filter(p => !p.isOut);
   const winner        = activePlayers.length === 1 ? activePlayers[0] : null;
 
-  // ── Fade in on mount ────────────────────────────────────────────────────────
+  // ── Mount: fade in + subscribe to M5 notifications ──────────────────────────
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-  }, []);
 
-  // ── Keep BLE success callback fresh ─────────────────────────────────────────
+    BLEManager.subscribeToNotifications((message) => {
+      if (message === "SUCCESS" && phaseRef.current === 'countdown') {
+        clearInterval(timerIntervalRef.current!)
+        timerAnim.stopAnimation()
+        // Tell M5 the player is confirmed safe
+        BLEManager.sendMessage("SAFE")
+        advanceTurnRef.current()
+      }
+    })
+
+    return () => { BLEManager.unsubscribe() }
+  }, [])
+
+  // ── advanceTurn in a ref so the BLE callback above never goes stale ──────────
+  const advanceTurnRef = useRef(() => {})
   useEffect(() => {
-    _bleSuccessCb = () => {
-      if (phase !== 'countdown') return;
-      clearInterval(timerIntervalRef.current!);
-      timerAnim.stopAnimation();
-      advanceTurn();
-    };
-    return () => { _bleSuccessCb = null; };
-  }, [phase, players, currentIdx]);
+    advanceTurnRef.current = () => {
+      setCurrentIdx(findNextActive(playersRef.current, currentIdxRef.current))
+      setActiveCommand(null)
+      setPhase('idle')
+    }
+  })
 
   // ── Auto-fire in Random mode ─────────────────────────────────────────────────
   useEffect(() => {
-    if (gameMode !== 'Random' || phase !== 'idle' || winner) return;
-    // Small pause between rounds so the player name change is visible
+    if (gameMode !== 'Random' || phase !== 'idle' || winner) return
     const delay = setTimeout(() => {
-      const cmd = BOP_COMMANDS[Math.floor(Math.random() * BOP_COMMANDS.length)];
-      issueCommand(cmd);
-    }, 1200);
-    return () => clearTimeout(delay);
-  }, [gameMode, phase, currentIdx]);
+      const cmd = BOP_COMMANDS[Math.floor(Math.random() * BOP_COMMANDS.length)]
+      issueCommand(cmd)
+    }, 1200)
+    return () => clearTimeout(delay)
+  }, [gameMode, phase, currentIdx])
 
   // ── Countdown tick ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'countdown') return;
+    if (phase !== 'countdown') return
 
     timerIntervalRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
-          clearInterval(timerIntervalRef.current!);
-          handleTimeout();
-          return 0;
+          clearInterval(timerIntervalRef.current!)
+          handleTimeout()
+          return 0
         }
-        return t - 1;
-      });
-    }, 1000);
+        return t - 1
+      })
+    }, 1000)
 
-    return () => clearInterval(timerIntervalRef.current!);
-  }, [phase]);
+    return () => clearInterval(timerIntervalRef.current!)
+  }, [phase])
 
-  // ── Pop-in animation when command appears ────────────────────────────────────
+  // ── Pop-in animation ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase === 'countdown') {
-      cmdScale.setValue(0.85);
-      Animated.spring(cmdScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
+      cmdScale.setValue(0.85)
+      Animated.spring(cmdScale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start()
     }
-  }, [phase]);
+  }, [phase])
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const issueCommand = (cmd: BopCommand) => {
-    if (phase !== 'idle') return;
-    bleSendCommand(`${cmd.blePayload}:${currentPlayer.name}`);
-    setActiveCommand(cmd);
-    setTimeLeft(roundTime);
-    setPhase('countdown');
+    if (phase !== 'idle') return
+    // Send "BOP_IT:PlayerName" so M5 knows who to display
+    BLEManager.sendMessage(`BOP_IT:${players[currentIdx].name}`)
+    setActiveCommand(cmd)
+    setTimeLeft(roundTime)
+    setPhase('countdown')
 
-    timerAnim.setValue(1);
+    timerAnim.setValue(1)
     Animated.timing(timerAnim, {
       toValue: 0,
       duration: roundTime * 1000,
       easing: Easing.linear,
       useNativeDriver: false,
-    }).start();
-  };
+    }).start()
+  }
 
   const handleTimeout = () => {
-    doShake();
-    setPhase('eliminated');
-    elimOpacity.setValue(0);
-    Animated.timing(elimOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    setTimeout(eliminateAndAdvance, 2000);
-  };
+    // Notify M5 that time is up
+    BLEManager.sendMessage("TIMES_UP")
+    doShake()
+    setPhase('eliminated')
+    elimOpacity.setValue(0)
+    Animated.timing(elimOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start()
+    setTimeout(eliminateAndAdvance, 2000)
+  }
 
   const eliminateAndAdvance = () => {
     setPlayers(prev => {
-      const updated = prev.map((p, i) => i === currentIdx ? { ...p, isOut: true } : p);
-      const remaining = updated.filter(p => !p.isOut);
+      const updated = prev.map((p, i) => i === currentIdxRef.current ? { ...p, isOut: true } : p)
+      const remaining = updated.filter(p => !p.isOut)
       if (remaining.length > 1) {
-        setCurrentIdx(findNextActive(updated, currentIdx));
+        setCurrentIdx(findNextActive(updated, currentIdxRef.current))
       }
-      return updated;
-    });
-    setActiveCommand(null);
-    setPhase('idle');
-  };
-
-  const advanceTurn = () => {
-    setCurrentIdx(findNextActive(players, currentIdx));
-    setActiveCommand(null);
-    setPhase('idle');
-  };
+      return updated
+    })
+    setActiveCommand(null)
+    setPhase('idle')
+  }
 
   const doShake = () => {
     Animated.sequence([
@@ -225,19 +215,18 @@ export default function GameScreen() {
       Animated.timing(shakeAnim, { toValue: 10,  duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0,   duration: 50, useNativeDriver: true }),
-    ]).start();
-  };
+    ]).start()
+  }
 
-  // Timer bar interpolations
-  const timerBarWidth = timerAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const timerBarWidth = timerAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
   const timerBarColor = timerAnim.interpolate({
     inputRange: [0, 0.3, 1],
     outputRange: ['#FF4D6D', '#FFBE0B', '#06D6A0'],
-  });
+  })
 
   // ── Winner ───────────────────────────────────────────────────────────────────
   if (winner) {
-    return <WinnerScreen winner={winner} onBack={() => router.back()} />;
+    return <WinnerScreen winner={winner} onBack={() => router.back()} />
   }
 
   return (
@@ -306,7 +295,7 @@ export default function GameScreen() {
               {/* IDLE */}
               {phase === 'idle' && (
                 <Text style={styles.idleHint}>
-                  {gameMode === 'Taskmaster' ? 'Pick a command below ↓' : 'Press the button below ↓'}
+                  {gameMode === 'Taskmaster' ? 'Pick a command below ↓' : 'Get ready...'}
                 </Text>
               )}
             </LinearGradient>
@@ -315,7 +304,7 @@ export default function GameScreen() {
           {/* ── Taskmaster Command Grid ── */}
           {gameMode === 'Taskmaster' && phase === 'idle' && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>⚡ SEND COMMAND VIA BLE</Text>
+              <Text style={styles.sectionLabel}>⚡ SEND COMMAND</Text>
               <View style={styles.cmdGrid}>
                 {BOP_COMMANDS.map(cmd => (
                   <TouchableOpacity
@@ -339,14 +328,13 @@ export default function GameScreen() {
             </View>
           )}
 
-
           {/* ── Scoreboard ── */}
           <View style={styles.scoreboard}>
             <Text style={styles.sectionLabel}>
               👥 {activePlayers.length} PLAYER{activePlayers.length !== 1 ? 'S' : ''} REMAINING
             </Text>
             {players.map((p, i) => {
-              const isActive = i === currentIdx && !p.isOut;
+              const isActive = i === currentIdx && !p.isOut
               return (
                 <View
                   key={i}
@@ -369,23 +357,23 @@ export default function GameScreen() {
                     </View>
                   )}
                 </View>
-              );
+              )
             })}
           </View>
 
         </ScrollView>
       </SafeAreaView>
     </Animated.View>
-  );
+  )
 }
 
 // ─── Winner Screen ─────────────────────────────────────────────────────────────
 
 function WinnerScreen({ winner, onBack }: { winner: Player; onBack: () => void }) {
-  const scale = useRef(new Animated.Value(0.3)).current;
+  const scale = useRef(new Animated.Value(0.3)).current
   useEffect(() => {
-    Animated.spring(scale, { toValue: 1, friction: 4, tension: 50, useNativeDriver: true }).start();
-  }, []);
+    Animated.spring(scale, { toValue: 1, friction: 4, tension: 50, useNativeDriver: true }).start()
+  }, [])
 
   return (
     <LinearGradient colors={['#06060F', winner.color + '2A', '#06060F']} style={styles.winnerRoot}>
@@ -399,7 +387,7 @@ function WinnerScreen({ winner, onBack }: { winner: Player; onBack: () => void }
         <Text style={styles.playAgainText}>PLAY AGAIN</Text>
       </TouchableOpacity>
     </LinearGradient>
-  );
+  )
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -430,10 +418,7 @@ const styles = StyleSheet.create({
 
   mainCard: { borderRadius: 28, borderWidth: 1, marginBottom: 24, overflow: 'hidden', minHeight: 200 },
   mainCardInner: { padding: 28, alignItems: 'center' },
-  nowLabel: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 4,
-    color: 'rgba(255,255,255,0.3)', marginBottom: 6,
-  },
+  nowLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 4, color: 'rgba(255,255,255,0.3)', marginBottom: 6 },
   playerName: { fontSize: 46, fontWeight: '900', letterSpacing: 1 },
 
   commandBlock: { alignItems: 'center', width: '100%', marginTop: 18 },
@@ -448,39 +433,26 @@ const styles = StyleSheet.create({
     borderRadius: 4, overflow: 'hidden', marginBottom: 8,
   },
   timerFill: { height: '100%', borderRadius: 4 },
-  timerDigit: {
-    alignSelf: 'flex-end', color: 'rgba(255,255,255,0.4)',
-    fontSize: 13, fontWeight: '800', letterSpacing: 1,
-  },
+  timerDigit: { alignSelf: 'flex-end', color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
   elimBlock: { alignItems: 'center', marginTop: 18 },
   elimEmoji: { fontSize: 50, marginBottom: 8 },
   elimText: { fontSize: 26, fontWeight: '900', color: '#FF4D6D', letterSpacing: 3 },
   elimSub: { marginTop: 6, color: 'rgba(255,255,255,0.35)', fontSize: 15 },
 
-  idleHint: {
-    marginTop: 22, color: 'rgba(255,255,255,0.22)',
-    fontSize: 14, fontStyle: 'italic',
-  },
+  idleHint: { marginTop: 22, color: 'rgba(255,255,255,0.22)', fontSize: 14, fontStyle: 'italic' },
 
   section: { marginBottom: 24 },
-  sectionLabel: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 3,
-    color: 'rgba(255,255,255,0.28)', marginBottom: 14,
-  },
+  sectionLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 3, color: 'rgba(255,255,255,0.28)', marginBottom: 14 },
 
   cmdGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cmdCard: { width: '47%', borderRadius: 20, borderWidth: 1.5, overflow: 'hidden' },
   cmdCardInner: { paddingVertical: 22, alignItems: 'center', gap: 10 },
-  cmdIconCircle: {
-    width: 60, height: 60, borderRadius: 30,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  cmdIconCircle: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
   cmdCardLabel: { fontSize: 13, fontWeight: '800', letterSpacing: 1 },
 
   scoreboard: {
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderRadius: 20, padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.025)', borderRadius: 20, padding: 16,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.055)',
   },
   scoreRow: {
@@ -492,14 +464,9 @@ const styles = StyleSheet.create({
   scoreDot: { width: 11, height: 11, borderRadius: 6 },
   scoreName: { flex: 1, color: '#fff', fontSize: 17, fontWeight: '700' },
   scoreNameOut: { textDecorationLine: 'line-through', color: 'rgba(255,255,255,0.3)' },
-  activePill: {
-    borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 3,
-  },
+  activePill: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 3 },
   activePillText: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
-  outPill: {
-    backgroundColor: 'rgba(255,77,109,0.14)', borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 3,
-  },
+  outPill: { backgroundColor: 'rgba(255,77,109,0.14)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
   outPillText: { color: '#FF4D6D', fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
 
   winnerRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
@@ -508,10 +475,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.03)', marginBottom: 30,
   },
   winnerTrophy: { fontSize: 72, marginBottom: 10 },
-  winnerLabel: {
-    fontSize: 11, fontWeight: '800', letterSpacing: 6,
-    color: 'rgba(255,255,255,0.32)', marginBottom: 8,
-  },
+  winnerLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 6, color: 'rgba(255,255,255,0.32)', marginBottom: 8 },
   winnerName: { fontSize: 52, fontWeight: '900', letterSpacing: 2 },
   winnerSub: { marginTop: 10, color: 'rgba(255,255,255,0.32)', fontSize: 15, fontStyle: 'italic' },
   playAgainBtn: {
@@ -520,4 +484,4 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)',
   },
   playAgainText: { color: '#fff', fontWeight: '900', fontSize: 15, letterSpacing: 3 },
-});
+})
