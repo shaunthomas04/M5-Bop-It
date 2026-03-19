@@ -49,6 +49,10 @@ static String BLE_BROADCAST_NAME = "ShaunM5";
 int  sliderX       = SLIDE_START_X;
 bool sliderGrabbed = false;
 
+int bopX = 160;
+int bopY = 120;
+int bopRadius = 50;
+
 ///////////////////////////////////////////////////////////////
 // IMU thresholds
 ///////////////////////////////////////////////////////////////
@@ -239,25 +243,37 @@ void drawPlayerPrompt(String playerName, String command) {
 ///////////////////////////////////////////////////////////////
 void drawBopScreen(String playerName) {
     M5.Lcd.fillScreen(TFT_BLACK);
+
+    // Player name
     M5.Lcd.setTextSize(2);
     M5.Lcd.setTextColor(TFT_WHITE);
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.println(playerName);
 
-    M5.Lcd.fillRoundRect(40, 70, 240, 120, 20, TFT_RED);
-    M5.Lcd.setTextSize(4);
-    M5.Lcd.setTextColor(TFT_WHITE);
-    M5.Lcd.setCursor(75, 115);
-    M5.Lcd.println("BOP IT!");
+    // Random position (keep fully on screen)
+    int margin = bopRadius + 10;
+
+    bopX = random(margin, M5.Lcd.width()  - margin);
+    bopY = random(margin + 40, M5.Lcd.height() - margin); 
+    // +40 so it doesn't overlap player name
+
+    // Draw red circle button
+    M5.Lcd.fillCircle(bopX, bopY, bopRadius, TFT_RED);
 }
 
 void handleBopInteraction() {
     int tx, ty;
     if (!getTouchPoint(tx, ty)) return;
 
-    if (tx >= 40 && tx <= 280 && ty >= 70 && ty <= 190) {
-        M5.Lcd.fillRoundRect(40, 70, 240, 120, 20, TFT_WHITE);
+    // Distance from touch to center
+    int dx = tx - bopX;
+    int dy = ty - bopY;
+
+    if (dx * dx + dy * dy <= bopRadius * bopRadius) {
+        // Flash white for feedback
+        M5.Lcd.fillCircle(bopX, bopY, bopRadius, TFT_WHITE);
         delay(80);
+
         sendSuccess();
     }
 }
