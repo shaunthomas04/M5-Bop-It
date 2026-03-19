@@ -96,7 +96,7 @@ export default function ExploreScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>📡 HOW IT WORKS</Text>
           {[
-            { icon: 'smartphone',   color: '#A855F7', text: 'Phone sends commands to the M5 device over Bluetooth.' },
+            { icon: 'smartphone',   color: '#4CC9F0', text: 'Phone sends commands to the M5 device over Bluetooth.' },
             { icon: 'vibration',    color: '#FFBE0B', text: 'M5 displays the command — player must perform the action.' },
             { icon: 'timer',        color: '#FF4D6D', text: 'If no response is detected in time, the player is eliminated.' },
             { icon: 'emoji-events', color: '#06D6A0', text: 'Last player standing wins!' },

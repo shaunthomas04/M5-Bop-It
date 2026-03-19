@@ -394,7 +394,7 @@ function WinnerScreen({ winner, onBack }: { winner: Player; onBack: () => void }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#06060F' },
-  scroll: { padding: 20, paddingTop: 8, paddingBottom: 50 },
+  scroll: { padding: 20, paddingTop: 40, paddingBottom: 50 },
   ambientGlow: {
     position: 'absolute', top: -80, alignSelf: 'center',
     width: 360, height: 360, borderRadius: 180,
