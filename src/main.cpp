@@ -7,7 +7,6 @@
 // Function Prototypes
 ///////////////////////////////////////////////////////////////
 void broadcastBleServer();
-void drawScreenTextWithBackground(String text, int backgroundColor);
 void drawPlayerPrompt(String playerName, String command);
 void drawBopScreen(String playerName);
 void drawSlideScreen(String playerName);
@@ -58,6 +57,72 @@ bool sliderGrabbed = false;
 
 float prevAccX = 0, prevAccY = 0, prevAccZ = 0;
 
+
+void drawCenteredDotsScreen(String text, uint16_t textColor) {
+    M5.Lcd.fillScreen(TFT_BLACK);
+
+    int screenW = M5.Lcd.width();
+    int screenH = M5.Lcd.height();
+
+    ///////////////////////////////////////////////////////////
+    // Draw centered multi-line text
+    ///////////////////////////////////////////////////////////
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(textColor);
+
+    int lineHeight = 25;
+    int startY = 70;
+
+    int lineStart = 0;
+    int lineEnd   = 0;
+    int currentY  = startY;
+
+    while ((lineEnd = text.indexOf('\n', lineStart)) != -1) {
+        String line = text.substring(lineStart, lineEnd);
+
+        int textWidth = line.length() * 12; 
+        int x = (screenW - textWidth) / 2;
+
+        M5.Lcd.setCursor(x, currentY);
+        M5.Lcd.println(line);
+
+        currentY += lineHeight;
+        lineStart = lineEnd + 1;
+    }
+
+    // Last line
+    String lastLine = text.substring(lineStart);
+    int textWidth = lastLine.length() * 12;
+    int x = (screenW - textWidth) / 2;
+
+    M5.Lcd.setCursor(x, currentY);
+    M5.Lcd.println(lastLine);
+
+    // Draw 4 colored dots (centered)
+    int dotY = currentY + 50;
+    int spacing = 40;
+    int radius  = 10;
+
+    int totalWidth = spacing * 3;
+    int startX = (screenW / 2) - (totalWidth / 2);
+
+    M5.Lcd.fillCircle(startX + 0 * spacing, dotY, radius, TFT_RED);
+    M5.Lcd.fillCircle(startX + 1 * spacing, dotY, radius, TFT_BLUE);
+    M5.Lcd.fillCircle(startX + 2 * spacing, dotY, radius, TFT_GREEN);
+    M5.Lcd.fillCircle(startX + 3 * spacing, dotY, radius, TFT_YELLOW);
+
+    // Device name (bottom-right)
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(TFT_LIGHTGREY);
+
+    int nameWidth = BLE_BROADCAST_NAME.length() * 6;
+    int nameX = screenW - nameWidth - 5;
+    int nameY = screenH - 15;
+
+    M5.Lcd.setCursor(nameX, nameY);
+    M5.Lcd.print(BLE_BROADCAST_NAME);
+}
+
 ///////////////////////////////////////////////////////////////
 // M5Unified IMU helper — reads accel into floats
 ///////////////////////////////////////////////////////////////
@@ -91,7 +156,7 @@ class MyServerCallbacks : public BLEServerCallbacks {
         deviceConnected     = true;
         previouslyConnected = true;
         Serial.println("Phone connected");
-        drawScreenTextWithBackground("Phone connected!", TFT_GREEN);
+        drawCenteredDotsScreen("Start Game to Continue!", TFT_GREEN);
     }
 
     void onDisconnect(BLEServer *pServer) {
@@ -99,7 +164,8 @@ class MyServerCallbacks : public BLEServerCallbacks {
         waitingForInput  = false;
         Serial.println("Disconnected - restarting advertising");
         BLEDevice::startAdvertising();
-        drawScreenTextWithBackground("Disconnected.\nWaiting...", TFT_ORANGE);
+        drawCenteredDotsScreen("Disconnected.\nWaiting...", TFT_YELLOW);
+
     }
 };
 
@@ -133,21 +199,17 @@ class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
 
         } else if (msg == "TIMES_UP") {
             waitingForInput = false;
-            drawScreenTextWithBackground(
-                currentPlayerName + "\nTOO SLOW!\n\n\U0001F480",
-                TFT_RED
-            );
+           
+            drawCenteredDotsScreen(currentPlayerName + "\nTOO SLOW!", TFT_RED);
             delay(1500);
-            drawScreenTextWithBackground("Waiting for\nnext round...", TFT_BLUE);
+            drawCenteredDotsScreen("Waiting for\nnext round...", TFT_WHITE);
 
         } else if (msg == "SAFE") {
             waitingForInput = false;
-            drawScreenTextWithBackground(
-                currentPlayerName + "\nSAFE! \u2705",
-                TFT_GREEN
-            );
+           
+            drawCenteredDotsScreen(currentPlayerName + "\nSAFE!", TFT_GREEN);
             delay(1000);
-            drawScreenTextWithBackground("Waiting for\nnext round...", TFT_BLUE);
+            drawCenteredDotsScreen("Waiting for\nnext round...", TFT_WHITE);
         }
     }
 };
@@ -380,14 +442,10 @@ void setup() {
     // BLE setup
     BLEDevice::init(BLE_BROADCAST_NAME.c_str());
 
-    drawScreenTextWithBackground("Initializing...", TFT_CYAN);
-
+    drawCenteredDotsScreen("Initializing...", TFT_BLACK);
     broadcastBleServer();
 
-    drawScreenTextWithBackground(
-        "Waiting for\nphone...\n\nDevice:\n" + BLE_BROADCAST_NAME,
-        TFT_BLUE
-    );
+    drawCenteredDotsScreen("Connect to phone\nto start game", TFT_WHITE);
 }
 ///////////////////////////////////////////////////////////////
 // Loop
@@ -406,15 +464,6 @@ void loop() {
     else if (currentCommand == "SHAKE") handleShakeInteraction();
 
     delay(30);
-}
-
-///////////////////////////////////////////////////////////////
-// Helpers
-///////////////////////////////////////////////////////////////
-void drawScreenTextWithBackground(String text, int backgroundColor) {
-    M5.Lcd.fillScreen(backgroundColor);
-    M5.Lcd.setCursor(0, 0);
-    M5.Lcd.println(text);
 }
 
 ///////////////////////////////////////////////////////////////
