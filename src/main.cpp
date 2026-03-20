@@ -290,16 +290,24 @@ void drawSlideScreen(String playerName) {
     M5.Lcd.setCursor(10, 40);
     M5.Lcd.println("SLIDE IT!  >>>");
 
+    // Fixed track width
     M5.Lcd.fillRoundRect(
         SLIDE_START_X,
         SLIDE_Y - SLIDE_TRACK_H / 2,
-        SLIDE_END_X - SLIDE_START_X + SLIDER_W,
+        SLIDE_END_X - SLIDE_START_X,
         SLIDE_TRACK_H,
         10,
         TFT_DARKGREY
     );
 
-    M5.Lcd.fillRoundRect(sliderX, SLIDE_Y - SLIDE_TRACK_H / 2, SLIDER_W, SLIDE_TRACK_H, 10, TFT_YELLOW);
+    M5.Lcd.fillRoundRect(
+        sliderX,
+        SLIDE_Y - SLIDE_TRACK_H / 2,
+        SLIDER_W,
+        SLIDE_TRACK_H,
+        10,
+        TFT_YELLOW
+    );
 }
 
 void handleSlideInteraction() {
@@ -319,31 +327,54 @@ void handleSlideInteraction() {
         sliderGrabbed = true;
 
         int newX = tx - SLIDER_W / 2;
-        newX     = max(newX, SLIDE_START_X);
-        newX     = min(newX, SLIDE_END_X);
+
+        // Fixed bounds
+        newX = max(newX, SLIDE_START_X);
+        newX = min(newX, SLIDE_END_X - SLIDER_W);
 
         if (newX != sliderX) {
             sliderX = newX;
 
+            // Clear only the track area (fixed width)
             M5.Lcd.fillRect(
-                SLIDE_START_X, SLIDE_Y - SLIDE_TRACK_H / 2 - 2,
-                SLIDE_END_X - SLIDE_START_X + SLIDER_W + 2,
+                SLIDE_START_X,
+                SLIDE_Y - SLIDE_TRACK_H / 2 - 2,
+                SLIDE_END_X - SLIDE_START_X,
                 SLIDE_TRACK_H + 4,
                 TFT_BLACK
             );
+
+            // Redraw track
             M5.Lcd.fillRoundRect(
                 SLIDE_START_X,
                 SLIDE_Y - SLIDE_TRACK_H / 2,
-                SLIDE_END_X - SLIDE_START_X + SLIDER_W,
+                SLIDE_END_X - SLIDE_START_X,
                 SLIDE_TRACK_H,
                 10,
                 TFT_DARKGREY
             );
-            M5.Lcd.fillRoundRect(sliderX, SLIDE_Y - SLIDE_TRACK_H / 2, SLIDER_W, SLIDE_TRACK_H, 10, TFT_YELLOW);
+
+            // Redraw slider
+            M5.Lcd.fillRoundRect(
+                sliderX,
+                SLIDE_Y - SLIDE_TRACK_H / 2,
+                SLIDER_W,
+                SLIDE_TRACK_H,
+                10,
+                TFT_YELLOW
+            );
         }
 
+        // Success condition still works
         if (sliderX >= SLIDE_THRESHOLD) {
-            M5.Lcd.fillRoundRect(sliderX, SLIDE_Y - SLIDE_TRACK_H / 2, SLIDER_W, SLIDE_TRACK_H, 10, TFT_WHITE);
+            M5.Lcd.fillRoundRect(
+                sliderX,
+                SLIDE_Y - SLIDE_TRACK_H / 2,
+                SLIDER_W,
+                SLIDE_TRACK_H,
+                10,
+                TFT_WHITE
+            );
             delay(80);
             sendSuccess();
         }
