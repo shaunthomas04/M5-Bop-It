@@ -392,38 +392,38 @@ void drawTwistScreen(String playerName) {
     // --- CENTER ---
     int cx = 160;
     int cy = 120;
-    int radius = 50; // smaller circle
+    int radius = 50;
 
     // Thick circle
     for (int i = 0; i < 8; i++) {
         M5.Lcd.drawCircle(cx, cy, radius - i, TFT_BLUE);
     }
 
-    // --- BIGGER GAPS (top + bottom now) ---
-    M5.Lcd.fillCircle(cx, cy - radius + 5, 20, TFT_BLACK); // top gap
-    M5.Lcd.fillCircle(cx, cy + radius - 5, 20, TFT_BLACK); // bottom gap
+    // --- GAPS on LEFT + RIGHT sides ---
+    M5.Lcd.fillCircle(cx - radius + 5, cy, 20, TFT_BLACK); // left gap
+    M5.Lcd.fillCircle(cx + radius - 5, cy, 20, TFT_BLACK); // right gap
 
-    // --- TOP ARROW (pointing UP) ---
+   // --- DOWN ARROW (moved slightly UP) ---
     M5.Lcd.fillTriangle(
-        cx, cy - radius - 18,     // tip (up)
-        cx - 12, cy - radius + 5, // left base
-        cx + 12, cy - radius + 5, // right base
+        cx - radius, cy + 10,        // tip (was +18)
+        cx - radius - 12, cy - 10,   // base adjusted up slightly
+        cx - radius + 12, cy - 10,
         TFT_BLUE
     );
 
-    // --- BOTTOM ARROW (pointing DOWN) ---
+    // --- UP ARROW (moved slightly DOWN) ---
     M5.Lcd.fillTriangle(
-        cx, cy + radius + 18,     // tip (down)
-        cx - 12, cy + radius - 5, // left base
-        cx + 12, cy + radius - 5, // right base
+        cx + radius, cy - 10,        // tip (was -18)
+        cx + radius - 12, cy + 10,   // base adjusted down slightly
+        cx + radius + 12, cy + 10,
         TFT_BLUE
     );
 
     // Instruction text
-    M5.Lcd.setTextSize(2);
-    M5.Lcd.setTextColor(TFT_WHITE);
-    M5.Lcd.setCursor(70, 200);
-    M5.Lcd.println("Rotate device");
+    // M5.Lcd.setTextSize(2);
+    // M5.Lcd.setTextColor(TFT_WHITE);
+    // M5.Lcd.setCursor(70, 200);
+    // M5.Lcd.println("Rotate device");
 }
 
 void handleTwistInteraction() {
