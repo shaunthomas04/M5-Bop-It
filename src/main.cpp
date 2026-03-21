@@ -287,10 +287,7 @@ void drawSlideScreen(String playerName) {
     M5.Lcd.setTextColor(TFT_WHITE);
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.println(playerName);
-    M5.Lcd.setCursor(10, 40);
-    M5.Lcd.println("SLIDE IT!  >>>");
 
-    // Fixed track width
     M5.Lcd.fillRoundRect(
         SLIDE_START_X,
         SLIDE_Y - SLIDE_TRACK_H / 2,
@@ -328,14 +325,12 @@ void handleSlideInteraction() {
 
         int newX = tx - SLIDER_W / 2;
 
-        // Fixed bounds
         newX = max(newX, SLIDE_START_X);
         newX = min(newX, SLIDE_END_X - SLIDER_W);
 
         if (newX != sliderX) {
             sliderX = newX;
 
-            // Clear only the track area (fixed width)
             M5.Lcd.fillRect(
                 SLIDE_START_X,
                 SLIDE_Y - SLIDE_TRACK_H / 2 - 2,
@@ -344,7 +339,6 @@ void handleSlideInteraction() {
                 TFT_BLACK
             );
 
-            // Redraw track
             M5.Lcd.fillRoundRect(
                 SLIDE_START_X,
                 SLIDE_Y - SLIDE_TRACK_H / 2,
@@ -354,7 +348,6 @@ void handleSlideInteraction() {
                 TFT_DARKGREY
             );
 
-            // Redraw slider
             M5.Lcd.fillRoundRect(
                 sliderX,
                 SLIDE_Y - SLIDE_TRACK_H / 2,
@@ -365,8 +358,7 @@ void handleSlideInteraction() {
             );
         }
 
-        // Success condition still works
-        if (sliderX >= SLIDE_THRESHOLD) {
+        if (sliderX >= SLIDE_END_X - SLIDER_W) {
             M5.Lcd.fillRoundRect(
                 sliderX,
                 SLIDE_Y - SLIDE_TRACK_H / 2,
@@ -389,22 +381,49 @@ void handleSlideInteraction() {
 ///////////////////////////////////////////////////////////////
 void drawTwistScreen(String playerName) {
     M5.Lcd.fillScreen(TFT_BLACK);
+
+    // Header text
     M5.Lcd.setTextSize(2);
-    M5.Lcd.setTextColor(TFT_CYAN);
+    M5.Lcd.setTextColor(TFT_WHITE);
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.println(playerName);
-    M5.Lcd.setCursor(10, 50);
-    M5.Lcd.println("TWIST IT!");
-    M5.Lcd.setCursor(10, 90);
-    M5.Lcd.setTextColor(TFT_WHITE);
-    M5.Lcd.println("Rotate the M5");
-    M5.Lcd.println("sideways!");
 
-    M5.Lcd.drawRoundRect(60, 160, 200, 60, 10, TFT_CYAN);
-    M5.Lcd.setTextSize(3);
-    M5.Lcd.setTextColor(TFT_CYAN);
-    M5.Lcd.setCursor(80, 175);
-    M5.Lcd.println("<< TURN");
+    M5.Lcd.setTextColor(TFT_BLUE);
+    // --- CENTER ---
+    int cx = 160;
+    int cy = 120;
+    int radius = 50; // smaller circle
+
+    // Thick circle
+    for (int i = 0; i < 8; i++) {
+        M5.Lcd.drawCircle(cx, cy, radius - i, TFT_BLUE);
+    }
+
+    // --- BIGGER GAPS (top + bottom now) ---
+    M5.Lcd.fillCircle(cx, cy - radius + 5, 20, TFT_BLACK); // top gap
+    M5.Lcd.fillCircle(cx, cy + radius - 5, 20, TFT_BLACK); // bottom gap
+
+    // --- TOP ARROW (pointing UP) ---
+    M5.Lcd.fillTriangle(
+        cx, cy - radius - 18,     // tip (up)
+        cx - 12, cy - radius + 5, // left base
+        cx + 12, cy - radius + 5, // right base
+        TFT_BLUE
+    );
+
+    // --- BOTTOM ARROW (pointing DOWN) ---
+    M5.Lcd.fillTriangle(
+        cx, cy + radius + 18,     // tip (down)
+        cx - 12, cy + radius - 5, // left base
+        cx + 12, cy + radius - 5, // right base
+        TFT_BLUE
+    );
+
+    // Instruction text
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.setCursor(70, 200);
+    M5.Lcd.println("Rotate device");
 }
 
 void handleTwistInteraction() {
