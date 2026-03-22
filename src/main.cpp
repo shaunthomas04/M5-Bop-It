@@ -442,22 +442,42 @@ void handleTwistInteraction() {
 ///////////////////////////////////////////////////////////////
 void drawShakeScreen(String playerName) {
     M5.Lcd.fillScreen(TFT_BLACK);
+
+    // Player name
     M5.Lcd.setTextSize(2);
     M5.Lcd.setTextColor(TFT_GREEN);
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.println(playerName);
-    M5.Lcd.setCursor(10, 50);
-    M5.Lcd.println("SHAKE IT!");
-    M5.Lcd.setCursor(10, 90);
-    M5.Lcd.setTextColor(TFT_WHITE);
-    M5.Lcd.println("Shake the M5");
-    M5.Lcd.println("as hard as");
-    M5.Lcd.println("you can!");
 
-    M5.Lcd.setTextSize(4);
-    M5.Lcd.setTextColor(TFT_GREEN);
-    M5.Lcd.setCursor(50, 180);
-    M5.Lcd.println("~SHAKE~");
+    // --- CENTER CUBE (M5-like) ---
+    int cx = 160;
+    int cy = 130;
+
+    int size = 90; // square size
+
+    // Outer cube (thick border effect)
+    for (int i = 0; i < 4; i++) {
+        M5.Lcd.drawRect(cx - size/2 + i, cy - size/2 + i, size - 2*i, size - 2*i, TFT_GREEN);
+    }
+
+    // Inner "screen"
+    M5.Lcd.drawRect(cx - size/2 + 15, cy - size/2 + 15, size - 30, size - 30, TFT_GREEN);
+
+    // Optional: little "buttons" at bottom (like M5)
+    M5.Lcd.fillCircle(cx - 20, cy + size/2 - 10, 3, TFT_GREEN);
+    M5.Lcd.fillCircle(cx,      cy + size/2 - 10, 3, TFT_GREEN);
+    M5.Lcd.fillCircle(cx + 20, cy + size/2 - 10, 3, TFT_GREEN);
+
+    // --- SHAKE LINES (LEFT) ---
+    M5.Lcd.drawLine(cx - size/2 - 10, cy - 30, cx - size/2 - 30, cy - 45, TFT_GREEN);
+    M5.Lcd.drawLine(cx - size/2 - 15, cy,      cx - size/2 - 35, cy,      TFT_GREEN);
+    M5.Lcd.drawLine(cx - size/2 - 10, cy + 30, cx - size/2 - 30, cy + 45, TFT_GREEN);
+
+    // --- SHAKE LINES (RIGHT) ---
+    M5.Lcd.drawLine(cx + size/2 + 10, cy - 30, cx + size/2 + 30, cy - 45, TFT_GREEN);
+    M5.Lcd.drawLine(cx + size/2 + 15, cy,      cx + size/2 + 35, cy,      TFT_GREEN);
+    M5.Lcd.drawLine(cx + size/2 + 10, cy + 30, cx + size/2 + 30, cy + 45, TFT_GREEN);
+
 }
 
 void handleShakeInteraction() {
