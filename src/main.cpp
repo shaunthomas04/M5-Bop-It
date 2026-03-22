@@ -41,7 +41,7 @@ static String BLE_BROADCAST_NAME = "ShaunM5";
 ///////////////////////////////////////////////////////////////
 #define SLIDE_START_X   20
 #define SLIDE_END_X     280
-#define SLIDE_Y         160
+#define SLIDE_Y         120
 #define SLIDE_TRACK_H   40
 #define SLIDER_W        60
 #define SLIDE_THRESHOLD 240
