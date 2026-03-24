@@ -445,7 +445,7 @@ void drawShakeScreen(String playerName) {
 
     // Player name
     M5.Lcd.setTextSize(2);
-    M5.Lcd.setTextColor(TFT_GREEN);
+    M5.Lcd.setTextColor(TFT_WHITE);
     M5.Lcd.setCursor(10, 10);
     M5.Lcd.println(playerName);
 
