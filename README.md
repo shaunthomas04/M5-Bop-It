@@ -2,6 +2,11 @@
 
 A Bop-It-style party game played on an M5Stack device connected to your phone over Bluetooth.
 
+<p>
+  <img src="images/demobop.png" alt="M5-Bop-It demo" width="300">
+  <p ><em>Sorry for the poor image quality!</em></p>
+</p>
+
 ---
 
 ## Setup
